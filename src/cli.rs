@@ -1,3 +1,37 @@
+//! # Command-Line Interface
+//!
+//! This module implements the command-line interface for the word ladder engine.
+//! It defines the CLI structure, command parsing, and execution logic.
+//!
+//! ## Commands
+//!
+//! The application supports three main commands:
+//!
+//! - `generate`: Generate puzzles (bulk or single)
+//! - `batch`: Generate multiple puzzles to a file
+//! - `verify`: Verify puzzle sequence validity
+//!
+//! ## Configuration Integration
+//!
+//! The CLI integrates with the configuration system to provide sensible defaults
+//! while allowing users to override settings via command-line arguments.
+//!
+//! ## Usage Examples
+//!
+//! ```bash
+//! // Generate bulk puzzles with defaults
+//! wordladder-engine generate
+//!
+//! // Generate single puzzle with custom words
+//! wordladder-engine generate --start cat --end dog
+//!
+//! // Generate batch with specific parameters
+//! wordladder-engine batch --count 50 --difficulty medium --output puzzles.txt
+//!
+//! // Verify a puzzle solution
+//! wordladder-engine verify --puzzle "cat,cot,cog,dog"
+//! ```
+
 use crate::config::Config;
 use crate::graph::WordGraph;
 use crate::puzzle::{Difficulty, PuzzleGenerator};
@@ -5,22 +39,36 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 
+/// Main CLI structure for the word ladder engine.
+///
+/// This struct defines the top-level command-line interface and uses clap's
+/// derive macros for automatic argument parsing and help generation.
 #[derive(Parser)]
 #[command(name = "wordladder-engine")]
 #[command(about = "A CLI tool for generating word ladder puzzles")]
 pub struct Cli {
+    /// The subcommand to execute
     #[command(subcommand)]
     pub command: Commands,
 }
 
+/// Enumeration of available commands.
+///
+/// Each variant represents a different operation the application can perform,
+/// with associated arguments for that specific command.
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Generate a single puzzle
+    /// Generate puzzles (bulk or single with arguments)
+    ///
+    /// This command can either:
+    /// - Generate bulk puzzles for all difficulty levels (when no specific words provided)
+    /// - Generate a single puzzle between specified start/end words
+    /// - Output results in text or JSON format
     Generate {
-        /// Path to dictionary file
+        /// Path to dictionary file (defaults to config value)
         #[arg(short, long, default_value = "data/dictionary.txt")]
         dict: PathBuf,
-        /// Path to base words file
+        /// Path to base words file (defaults to config value)
         #[arg(short = 'b', long, default_value = "data/base_words.txt")]
         base_words: PathBuf,
         /// Starting word (optional, will pick random if not provided)
@@ -29,42 +77,73 @@ pub enum Commands {
         /// Ending word (optional, will pick random if not provided)
         #[arg(short, long)]
         end: Option<String>,
-        /// Output as JSON
+        /// Output as JSON instead of text
         #[arg(long)]
         json: bool,
     },
-    /// Generate a batch of puzzles
+    /// Generate multiple puzzles of specified difficulty to a file
+    ///
+    /// Creates a batch of puzzles with consistent difficulty and saves them
+    /// to a text file. Useful for generating puzzle sets for games or challenges.
     Batch {
-        /// Path to dictionary file
+        /// Path to dictionary file (defaults to config value)
         #[arg(short, long, default_value = "data/dictionary.txt")]
         dict: PathBuf,
-        /// Path to base words file
+        /// Path to base words file (defaults to config value)
         #[arg(short = 'b', long, default_value = "data/base_words.txt")]
         base_words: PathBuf,
         /// Number of puzzles to generate
         #[arg(short, long, default_value = "10")]
         count: usize,
-        /// Difficulty level
+        /// Difficulty level (easy, medium, hard)
         #[arg(short, long, default_value = "medium")]
         difficulty: String,
-        /// Output file for puzzles (required)
+        /// Output file path for the generated puzzles
         #[arg(short, long)]
         output: PathBuf,
     },
-    /// Verify a puzzle
+    /// Verify that a puzzle sequence is valid
+    ///
+    /// Checks whether a comma-separated sequence of words forms a valid
+    /// word ladder where each consecutive pair differs by exactly one letter.
     Verify {
-        /// Path to dictionary file
+        /// Path to dictionary file (defaults to config value)
         #[arg(short, long, default_value = "data/dictionary.txt")]
         dict: PathBuf,
-        /// Path to base words file
+        /// Path to base words file (defaults to config value)
         #[arg(short = 'b', long, default_value = "data/base_words.txt")]
         base_words: PathBuf,
-        /// Puzzle as comma-separated words
+        /// Puzzle as comma-separated words (e.g., "cat,cot,cog,dog")
         #[arg(short, long)]
         puzzle: String,
     },
 }
 
+/// Main CLI execution function.
+///
+/// This function handles the parsed CLI arguments and dispatches to the
+/// appropriate command handler. It integrates with the configuration system
+/// to provide sensible defaults while respecting user overrides.
+///
+/// # Arguments
+///
+/// * `cli` - The parsed command-line arguments
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful execution, or an error if something fails.
+///
+/// # Examples
+///
+/// ```rust
+/// use wordladder_engine::cli::{Cli, run};
+/// use clap::Parser;
+///
+/// // Parse arguments and run
+/// let cli = Cli::parse();
+/// run(cli)?;
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn run(cli: Cli) -> Result<()> {
     let config = Config::default();
 
@@ -187,6 +266,19 @@ pub fn run(cli: Cli) -> Result<()> {
     Ok(())
 }
 
+/// Loads and initializes a puzzle generator with the specified dictionary files.
+///
+/// This function creates a new `WordGraph`, loads the dictionary and base words,
+/// and returns a configured `PuzzleGenerator` ready for use.
+///
+/// # Arguments
+///
+/// * `dict` - Path to the dictionary file
+/// * `base_words` - Path to the base words file
+///
+/// # Returns
+///
+/// Returns a configured `PuzzleGenerator` or an error if file loading fails.
 fn load_generator(dict: &Path, base_words: &Path) -> Result<PuzzleGenerator> {
     let mut graph = WordGraph::new();
     graph.load_dictionary(dict.to_str().unwrap())?;
@@ -194,6 +286,20 @@ fn load_generator(dict: &Path, base_words: &Path) -> Result<PuzzleGenerator> {
     Ok(PuzzleGenerator::new(graph))
 }
 
+/// Generates bulk puzzles for all difficulty levels and saves them to files.
+///
+/// This function creates three output files (easy.txt, medium.txt, hard.txt)
+/// in the configured output directory, each containing the specified number
+/// of puzzles for that difficulty level.
+///
+/// # Arguments
+///
+/// * `generator` - The puzzle generator to use
+/// * `config` - Configuration containing output settings
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success, or an error if file operations fail.
 fn generate_bulk_puzzles(generator: &PuzzleGenerator, config: &Config) -> Result<()> {
     use std::fs;
 
