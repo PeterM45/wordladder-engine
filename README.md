@@ -129,7 +129,7 @@ cargo doc --open  # View documentation
 
 ## 📚 Documentation
 
-- [API Documentation](https://docs.rs/wordladder-engine) - Generated Rust docs
+- **Local API Documentation** - Run `cargo doc --open` to view generated docs
 - [Configuration Guide](#configuration) - Advanced configuration options
 
 ## 🤝 Contributing
