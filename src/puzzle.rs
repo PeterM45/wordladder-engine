@@ -7,7 +7,7 @@
 //! ## Key Components
 //!
 //! - **Puzzle Structure**: Represents a complete word ladder with start, end, path, and difficulty
-//! - **Difficulty Levels**: Easy (3-4 steps), Medium (5-7 steps), Hard (8+ steps)
+//! - **Difficulty Levels**: Easy (2-3 steps), Medium (4-5 steps), Hard (6-10 steps)
 //! - **Puzzle Generator**: Creates puzzles using random word selection and path finding
 //! - **Validation**: Verifies that puzzle solutions are valid word ladders
 //!
@@ -57,24 +57,29 @@ pub struct Puzzle {
 
 /// Represents the difficulty level of a word ladder puzzle.
 ///
-/// Difficulty is determined by the number of steps (word changes) required:
-/// - Easy: 3-4 steps (4-5 total words in path)
-/// - Medium: 5-7 steps (6-8 total words in path)
-/// - Hard: 8+ steps (9+ total words in path)
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+/// The difficulty is determined by the number of steps required to solve the puzzle:
+/// - **Easy**: 2-3 steps (short paths)
+/// - **Medium**: 4-5 steps (moderate complexity)
+/// - **Hard**: 6-10 steps (complex puzzles requiring multiple transformations)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Difficulty {
-    /// Easy puzzles: 3-4 word changes (4-5 words total)
+    /// Easy puzzles (2-3 steps)
     Easy,
-    /// Medium puzzles: 5-7 word changes (6-8 words total)
+    /// Medium puzzles (4-5 steps)
     Medium,
-    /// Hard puzzles: 8+ word changes (9+ words total)
+    /// Hard puzzles (6-10 steps)
     Hard,
 }
 
 impl Puzzle {
-    /// Creates a new puzzle with the given parameters.
+    /// Creates a new puzzle with the specified path and automatically determines difficulty.
     ///
-    /// The difficulty is automatically calculated based on the path length.
+    /// The difficulty is calculated based on the number of steps in the path:
+    /// - 2-3 steps: Easy
+    /// - 4-5 steps: Medium
+    /// - 6-10 steps: Hard
+    ///
+    /// Returns `None` if the path has 1 step or fewer, or more than 10 steps (invalid puzzle).
     ///
     /// # Arguments
     ///
@@ -88,22 +93,26 @@ impl Puzzle {
     /// use wordladder_engine::puzzle::{Puzzle, Difficulty};
     ///
     /// let path = vec!["cat".to_string(), "cot".to_string(), "cog".to_string(), "dog".to_string()];
-    /// let puzzle = Puzzle::new("cat".to_string(), "dog".to_string(), path);
-    /// assert!(matches!(puzzle.difficulty, Difficulty::Easy));
+    /// let puzzle = Puzzle::new("cat".to_string(), "dog".to_string(), path).unwrap();
+    /// assert!(matches!(puzzle.difficulty, Difficulty::Easy)); // 3 steps = Easy
     /// ```
-    pub fn new(start: String, end: String, path: Vec<String>) -> Self {
+    pub fn new(start: String, end: String, path: Vec<String>) -> Option<Self> {
         let len = path.len() - 1; // number of steps
+        if len <= 1 {
+            return None;
+        }
         let difficulty = match len {
-            3..=4 => Difficulty::Easy,
-            5..=7 => Difficulty::Medium,
-            _ => Difficulty::Hard,
+            2..=3 => Difficulty::Easy,
+            4..=5 => Difficulty::Medium,
+            6..=10 => Difficulty::Hard,
+            _ => return None, // Skip puzzles with more than 10 steps
         };
-        Self {
+        Some(Self {
             start,
             end,
             path,
             difficulty,
-        }
+        })
     }
 
     /// Serializes the puzzle to a JSON string.
@@ -120,8 +129,8 @@ impl Puzzle {
     /// let puzzle = Puzzle::new(
     ///     "cat".to_string(),
     ///     "dog".to_string(),
-    ///     vec!["cat".to_string(), "dog".to_string()]
-    /// );
+    ///     vec!["cat".to_string(), "cot".to_string(), "dog".to_string()]
+    /// ).unwrap();
     ///
     /// let json = puzzle.to_json().unwrap();
     /// println!("{}", json);
@@ -192,7 +201,7 @@ impl PuzzleGenerator {
     pub fn generate_puzzle(&self, start: &str, end: &str) -> Option<Puzzle> {
         self.graph
             .find_shortest_path(start, end)
-            .map(|path| Puzzle::new(start.to_string(), end.to_string(), path))
+            .and_then(|path| Puzzle::new(start.to_string(), end.to_string(), path))
     }
 
     /// Generates a batch of puzzles with the specified difficulty level.
@@ -469,7 +478,107 @@ mod tests {
                 "c".to_string(),
                 "d".to_string(),
             ],
+        )
+        .unwrap();
+        assert!(matches!(puzzle.difficulty, Difficulty::Easy)); // 3 steps = Easy
+    }
+
+    #[test]
+    fn test_puzzle_difficulty_ranges() {
+        // Test Easy: 2-3 steps
+        let easy_2 = Puzzle::new(
+            "a".to_string(),
+            "b".to_string(),
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+        )
+        .unwrap();
+        assert!(matches!(easy_2.difficulty, Difficulty::Easy));
+
+        let easy_3 = Puzzle::new(
+            "a".to_string(),
+            "b".to_string(),
+            vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+            ],
+        )
+        .unwrap();
+        assert!(matches!(easy_3.difficulty, Difficulty::Easy));
+
+        // Test Medium: 4-5 steps
+        let medium_4 = Puzzle::new(
+            "a".to_string(),
+            "b".to_string(),
+            vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+                "e".to_string(),
+            ],
+        )
+        .unwrap();
+        assert!(matches!(medium_4.difficulty, Difficulty::Medium));
+
+        let medium_5 = Puzzle::new(
+            "a".to_string(),
+            "b".to_string(),
+            vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+                "e".to_string(),
+                "f".to_string(),
+            ],
+        )
+        .unwrap();
+        assert!(matches!(medium_5.difficulty, Difficulty::Medium));
+
+        // Test Hard: 6-10 steps
+        let hard_6 = Puzzle::new(
+            "a".to_string(),
+            "b".to_string(),
+            vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+                "e".to_string(),
+                "f".to_string(),
+                "g".to_string(),
+            ],
+        )
+        .unwrap();
+        assert!(matches!(hard_6.difficulty, Difficulty::Hard));
+
+        let hard_10 = Puzzle::new(
+            "a".to_string(),
+            "b".to_string(),
+            (0..=10).map(|i| i.to_string()).collect(),
+        )
+        .unwrap();
+        assert!(matches!(hard_10.difficulty, Difficulty::Hard));
+
+        // Test that puzzles with more than 10 steps are rejected
+        let too_hard = Puzzle::new(
+            "a".to_string(),
+            "b".to_string(),
+            (0..=11).map(|i| i.to_string()).collect(),
         );
-        assert!(matches!(puzzle.difficulty, Difficulty::Easy));
+        assert!(too_hard.is_none()); // 11 steps should be rejected
+
+        // Test that puzzles with 1 or 0 steps are rejected
+        let too_easy_1 = Puzzle::new(
+            "a".to_string(),
+            "b".to_string(),
+            vec!["a".to_string(), "b".to_string()],
+        );
+        assert!(too_easy_1.is_none()); // 1 step should be rejected
+
+        let too_easy_0 = Puzzle::new("a".to_string(), "b".to_string(), vec!["a".to_string()]);
+        assert!(too_easy_0.is_none()); // 0 steps should be rejected
     }
 }

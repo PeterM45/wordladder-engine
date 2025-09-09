@@ -130,9 +130,9 @@ All commands automatically create the `output/` directory if it doesn't exist. W
 
 ## 🎯 Difficulty Levels
 
-- **Easy**: 3-4 word changes
-- **Medium**: 5-7 word changes
-- **Hard**: 8+ word changes
+- **Easy**: 2-3 steps (short paths)
+- **Medium**: 4-5 steps (moderate complexity)
+- **Hard**: 6-10 steps (complex puzzles requiring multiple transformations)
 
 ## 📄 Output Formats
 
