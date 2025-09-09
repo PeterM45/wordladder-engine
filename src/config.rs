@@ -10,6 +10,8 @@
 //! - Base words: `data/base_words.txt`
 //! - Output directory: `output/`
 //! - Bulk puzzle count: 100 puzzles per difficulty
+//! - SQL batch size: 100 records per INSERT
+//! - Mobile difficulty distribution: 40% easy, 40% medium, 20% hard
 //!
 //! ## Usage
 //!
@@ -23,7 +25,8 @@
 //! let custom_config = Config::new()
 //!     .with_dictionary_path("custom/dict.txt".into())
 //!     .with_output_dir("results".into())
-//!     .with_bulk_puzzle_count(50);
+//!     .with_sql_batch_size(50)
+//!     .with_mobile_distribution(0.5, 0.3, 0.2);
 //! ```
 
 use serde::{Deserialize, Serialize};
@@ -50,6 +53,39 @@ pub struct Config {
 
     /// Number of puzzles to generate for each difficulty level during bulk generation.
     pub bulk_puzzle_count: usize,
+
+    /// Number of SQL records to batch in each INSERT statement for performance.
+    pub sql_batch_size: usize,
+
+    /// Whether to include CREATE TABLE schema by default in SQL exports.
+    pub include_schema_by_default: bool,
+
+    /// Difficulty distribution for mobile-optimized puzzle generation.
+    pub mobile_difficulty_distribution: DifficultyDistribution,
+}
+
+/// Difficulty distribution configuration for mobile puzzle generation.
+///
+/// This struct defines the ratios of easy, medium, and hard puzzles to generate
+/// for mobile applications, ensuring a balanced gameplay experience.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DifficultyDistribution {
+    /// Ratio of easy puzzles (0.0 to 1.0)
+    pub easy: f64,
+    /// Ratio of medium puzzles (0.0 to 1.0)
+    pub medium: f64,
+    /// Ratio of hard puzzles (0.0 to 1.0)
+    pub hard: f64,
+}
+
+impl Default for DifficultyDistribution {
+    fn default() -> Self {
+        Self {
+            easy: 0.4,   // 40% easy
+            medium: 0.4, // 40% medium
+            hard: 0.2,   // 20% hard
+        }
+    }
 }
 
 impl Default for Config {
@@ -59,6 +95,9 @@ impl Default for Config {
             base_words_path: PathBuf::from("data/base_words.txt"),
             output_dir: PathBuf::from("output"),
             bulk_puzzle_count: 100,
+            sql_batch_size: 100,
+            include_schema_by_default: true,
+            mobile_difficulty_distribution: DifficultyDistribution::default(),
         }
     }
 }
@@ -151,6 +190,65 @@ impl Config {
     /// ```
     pub fn with_bulk_puzzle_count(mut self, count: usize) -> Self {
         self.bulk_puzzle_count = count;
+        self
+    }
+
+    /// Sets the SQL batch size for INSERT statements.
+    ///
+    /// # Arguments
+    ///
+    /// * `batch_size` - Number of records per INSERT statement
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use wordladder_engine::config::Config;
+    ///
+    /// let config = Config::new()
+    ///     .with_sql_batch_size(50);
+    /// ```
+    pub fn with_sql_batch_size(mut self, batch_size: usize) -> Self {
+        self.sql_batch_size = batch_size;
+        self
+    }
+
+    /// Sets whether to include schema by default in SQL exports.
+    ///
+    /// # Arguments
+    ///
+    /// * `include_schema` - Whether to include CREATE TABLE by default
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use wordladder_engine::config::Config;
+    ///
+    /// let config = Config::new()
+    ///     .with_include_schema_by_default(false);
+    /// ```
+    pub fn with_include_schema_by_default(mut self, include_schema: bool) -> Self {
+        self.include_schema_by_default = include_schema;
+        self
+    }
+
+    /// Sets the mobile difficulty distribution.
+    ///
+    /// # Arguments
+    ///
+    /// * `easy` - Ratio of easy puzzles (0.0 to 1.0)
+    /// * `medium` - Ratio of medium puzzles (0.0 to 1.0)
+    /// * `hard` - Ratio of hard puzzles (0.0 to 1.0)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use wordladder_engine::config::Config;
+    ///
+    /// let config = Config::new()
+    ///     .with_mobile_distribution(0.5, 0.3, 0.2);
+    /// ```
+    pub fn with_mobile_distribution(mut self, easy: f64, medium: f64, hard: f64) -> Self {
+        self.mobile_difficulty_distribution = DifficultyDistribution { easy, medium, hard };
         self
     }
 }

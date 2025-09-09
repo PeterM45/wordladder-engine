@@ -43,7 +43,7 @@ use std::collections::HashMap;
 ///
 /// A puzzle consists of a starting word, ending word, the complete path between them,
 /// and an automatically calculated difficulty level based on the number of steps.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Puzzle {
     /// The starting word of the puzzle
     pub start: String,
@@ -61,7 +61,7 @@ pub struct Puzzle {
 /// - Easy: 3-4 steps (4-5 total words in path)
 /// - Medium: 5-7 steps (6-8 total words in path)
 /// - Hard: 8+ steps (9+ total words in path)
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum Difficulty {
     /// Easy puzzles: 3-4 word changes (4-5 words total)
     Easy,

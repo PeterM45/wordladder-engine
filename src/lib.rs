@@ -11,6 +11,7 @@
 //! - `graph`: Word graph construction and BFS path finding
 //! - `puzzle`: Puzzle generation, validation, and difficulty assessment
 //! - `cli`: Command-line interface for the application
+//! - `exporters`: Export functionality for different formats (SQL, etc.)
 //!
 //! ## Key Features
 //!
@@ -19,6 +20,7 @@
 //! - **Dual Dictionary System**: Separate dictionaries for path finding and puzzle endpoints
 //! - **Async File I/O**: Fast loading of large dictionary files
 //! - **Comprehensive Error Handling**: Robust error handling with detailed messages
+//! - **Multiple Export Formats**: Support for text, JSON, and SQL export formats
 //!
 //! ## Example
 //!
@@ -42,5 +44,6 @@
 
 pub mod cli;
 pub mod config;
+pub mod exporters;
 pub mod graph;
 pub mod puzzle;
