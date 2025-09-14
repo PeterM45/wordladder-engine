@@ -180,6 +180,24 @@ pub enum Commands {
         #[arg(long, default_value = "100")]
         batch_size: usize,
     },
+    /// Export dictionary to SQL format for mobile applications
+    ///
+    /// Creates a SQLite-compatible SQL file containing all dictionary words
+    /// with proper indexing for efficient lookups (O(log n) performance).
+    ExportDict {
+        /// Path to dictionary file (defaults to config value)
+        #[arg(short, long, default_value = "data/dictionary.txt")]
+        dict: PathBuf,
+        /// Output file path for the SQL export (optional, defaults to output/ directory)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Include CREATE TABLE schema in SQL output
+        #[arg(long)]
+        include_schema: Option<bool>,
+        /// Batch size for SQL INSERT statements
+        #[arg(long, default_value = "100")]
+        batch_size: usize,
+    },
     /// Verify that a puzzle sequence is valid
     ///
     /// Checks whether a comma-separated sequence of words forms a valid
@@ -271,11 +289,12 @@ fn resolve_output_path(
 /// ```rust
 /// use wordladder_engine::cli::{Cli, run};
 /// use clap::Parser;
+/// use std::ffi::OsString;
 ///
-/// // Parse arguments and run
-/// let cli = Cli::parse();
-/// run(cli)?;
-/// # Ok::<(), anyhow::Error>(())
+/// // Parse arguments and run (example with help command)
+/// let args = vec![OsString::from("wordladder-engine"), OsString::from("--help")];
+/// let cli = Cli::parse_from(args);
+/// // Note: This would normally run the CLI, but we skip execution in doctest
 /// ```
 pub fn run(cli: Cli) -> Result<()> {
     let config = Config::default();
@@ -530,6 +549,41 @@ pub fn run(cli: Cli) -> Result<()> {
                 Ok(false) => println!("Puzzle is invalid"),
                 Err(e) => println!("Error: {}", e),
             }
+        }
+        Commands::ExportDict {
+            dict,
+            output,
+            include_schema,
+            batch_size,
+        } => {
+            let dict_path = if dict == PathBuf::from("data/dictionary.txt") {
+                config.dictionary_path.clone()
+            } else {
+                dict
+            };
+
+            // Load the dictionary
+            let mut graph = WordGraph::new();
+            graph.load_dictionary(dict_path.to_str().unwrap())?;
+            let words = graph.get_words();
+
+            // Export to SQL
+            let output_path =
+                resolve_output_path(output, &config, &OutputFormat::Sql, "dictionary")?;
+            let sql_config = SqlExportConfig {
+                batch_size,
+                include_schema: include_schema.unwrap_or(config.include_schema_by_default),
+                include_comments: true,
+            };
+            let mut exporter = SqlExporter::with_config(sql_config);
+            let sql = exporter.export_dictionary(words)?;
+            std::fs::write(&output_path, sql)?;
+
+            println!(
+                "Exported {} dictionary words to {}",
+                words.len(),
+                output_path.display()
+            );
         }
     }
     Ok(())

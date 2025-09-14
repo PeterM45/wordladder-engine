@@ -16,21 +16,23 @@
 //! ## Key Features
 //!
 //! - **Efficient Word Graph**: Uses adjacency list representation with BFS for optimal path finding
-//! - **Configurable Difficulty**: Easy (3-4 steps), Medium (5-7 steps), Hard (8+ steps)
+//! - **Configurable Difficulty**: Easy (2-3 steps), Medium (4-5 steps), Hard (6-10 steps)
 //! - **Dual Dictionary System**: Separate dictionaries for path finding and puzzle endpoints
+//! - **Dictionary Export**: Export dictionary to SQL for O(log n) mobile lookups
 //! - **Async File I/O**: Fast loading of large dictionary files
 //! - **Comprehensive Error Handling**: Robust error handling with detailed messages
 //! - **Multiple Export Formats**: Support for text, JSON, and SQL export formats
+//! - **Mobile Integration**: Direct SQL export for React Native/SQLite applications
 //!
 //! ## Example
 //!
 //! ```rust
-//! use wordladder_engine::{Config, graph::WordGraph, puzzle::PuzzleGenerator};
+//! use wordladder_engine::{config::Config, graph::WordGraph, puzzle::PuzzleGenerator};
 //!
 //! // Create a word graph
 //! let mut graph = WordGraph::new();
-//! graph.load_dictionary("data/dictionary.txt")?;
-//! graph.load_base_words("data/base_words.txt")?;
+//! graph.load_dictionary("data/dictionary.txt").unwrap();
+//! graph.load_base_words("data/base_words.txt").unwrap();
 //!
 //! // Create puzzle generator
 //! let generator = PuzzleGenerator::new(graph);
@@ -39,7 +41,6 @@
 //! if let Some(puzzle) = generator.generate_puzzle("cat", "dog") {
 //!     println!("Found path: {:?}", puzzle.path);
 //! }
-//! # Ok::<(), anyhow::Error>(())
 //! ```
 
 pub mod cli;

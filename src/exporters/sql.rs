@@ -16,21 +16,21 @@
 //! ```rust
 //! use wordladder_engine::exporters::sql::SqlExporter;
 //!
-//! let exporter = SqlExporter::new()
+//! let mut exporter = SqlExporter::new()
 //!     .with_batch_size(100)
 //!     .with_include_schema(true);
 //!
 //! let puzzles = vec![/* puzzle data */];
-//! let sql = exporter.export_puzzles(&puzzles)?;
+//! let sql = exporter.export_puzzles(&puzzles).unwrap();
 //!
 //! // Write to file
-//! std::fs::write("puzzles.sql", sql)?;
-//! # Ok::<(), anyhow::Error>(())
+//! std::fs::write("puzzles.sql", sql).unwrap();
 //! ```
 
 use crate::puzzle::{Difficulty, Puzzle};
 use anyhow::Result;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 /// Configuration for SQL export functionality.
 ///
@@ -164,10 +164,9 @@ impl SqlExporter {
     /// use wordladder_engine::exporters::sql::SqlExporter;
     /// use wordladder_engine::puzzle::Puzzle;
     ///
-    /// let exporter = SqlExporter::new();
+    /// let mut exporter = SqlExporter::new();
     /// let puzzles = vec![/* puzzle data */];
-    /// let sql = exporter.export_puzzles(&puzzles)?;
-    /// # Ok::<String, anyhow::Error>(sql)
+    /// let sql = exporter.export_puzzles(&puzzles).unwrap();
     /// ```
     pub fn export_puzzles(&mut self, puzzles: &[Puzzle]) -> Result<String> {
         let mut sql = String::new();
@@ -431,6 +430,111 @@ impl SqlExporter {
 
         selected
     }
+
+    /// Exports dictionary words to SQL format for mobile database integration.
+    ///
+    /// This method generates SQL statements to create and populate a dictionary table
+    /// with all valid words from the word graph. The table includes an index for
+    /// efficient word lookups (O(log n) vs O(n) for text file scanning).
+    ///
+    /// # Arguments
+    ///
+    /// * `words` - The set of dictionary words to export
+    ///
+    /// # Returns
+    ///
+    /// A string containing the complete SQL script for the dictionary table.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use wordladder_engine::exporters::sql::SqlExporter;
+    /// use std::collections::HashSet;
+    ///
+    /// let mut exporter = SqlExporter::new();
+    /// let words: HashSet<String> = ["cat", "dog", "bat"].iter().map(|s| s.to_string()).collect();
+    /// let sql = exporter.export_dictionary(&words).unwrap();
+    /// ```
+    pub fn export_dictionary(&mut self, words: &HashSet<String>) -> Result<String> {
+        let mut sql = String::new();
+
+        // Add schema if requested
+        if self.config.include_schema {
+            sql.push_str(&self.generate_dictionary_schema());
+            sql.push('\n');
+        }
+
+        // Add comments if requested
+        if self.config.include_comments {
+            sql.push_str(&format!("-- Generated {} dictionary words\n", words.len()));
+            sql.push('\n');
+        }
+
+        // Generate INSERT statements in batches
+        let word_list: Vec<&String> = words.iter().collect();
+        for chunk in word_list.chunks(self.config.batch_size) {
+            sql.push_str(&self.generate_dictionary_batch_insert(chunk));
+            sql.push('\n');
+        }
+
+        Ok(sql)
+    }
+
+    /// Generates the CREATE TABLE statement for the dictionary table.
+    ///
+    /// # Returns
+    ///
+    /// A string containing the CREATE TABLE SQL statement for the dictionary.
+    fn generate_dictionary_schema(&self) -> String {
+        let mut schema = String::from(
+            "-- Create dictionary table\n\
+             CREATE TABLE IF NOT EXISTS dictionary (\n\
+             \tword TEXT PRIMARY KEY,\n\
+             \tlength INTEGER NOT NULL\n\
+             );",
+        );
+
+        if self.config.include_comments {
+            schema.push_str("\n\n-- Indexes for efficient word lookups\n");
+            schema.push_str(
+                "CREATE INDEX IF NOT EXISTS idx_dictionary_length ON dictionary(length);\n",
+            );
+        }
+
+        schema
+    }
+
+    /// Generates a batched INSERT statement for a chunk of dictionary words.
+    ///
+    /// # Arguments
+    ///
+    /// * `words` - Slice of words to insert
+    ///
+    /// # Returns
+    ///
+    /// A string containing the INSERT SQL statement for the dictionary words.
+    fn generate_dictionary_batch_insert(&self, words: &[&String]) -> String {
+        if words.is_empty() {
+            return String::new();
+        }
+
+        let mut sql = String::from("INSERT OR IGNORE INTO dictionary (word, length) VALUES\n");
+
+        for (i, word) in words.iter().enumerate() {
+            let escaped_word = self.escape_sql_string(word);
+            let length = word.len();
+
+            sql.push_str(&format!("\t('{}', {})", escaped_word, length));
+
+            if i < words.len() - 1 {
+                sql.push_str(",\n");
+            } else {
+                sql.push(';');
+            }
+        }
+
+        sql
+    }
 }
 
 impl Default for SqlExporter {
@@ -585,5 +689,27 @@ mod tests {
         assert!(easy_count >= 1); // Should have at least some easy puzzles
         assert!(medium_count >= 1); // Should have at least some medium puzzles
         assert!(hard_count >= 1); // Should have at least some hard puzzles
+    }
+
+    #[test]
+    fn test_export_dictionary() {
+        let mut exporter = SqlExporter::new();
+        let words: HashSet<String> = ["cat", "dog", "bat"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+
+        let sql = exporter.export_dictionary(&words).unwrap();
+
+        // Check that the CREATE TABLE statement is present
+        assert!(sql.contains("CREATE TABLE IF NOT EXISTS dictionary"));
+
+        // Check that the INSERT statements are present for each word
+        for word in &["cat", "dog", "bat"] {
+            assert!(sql.contains(&format!("('{}', {})", word, word.len())));
+        }
+
+        // Check that the SQL ends with a semicolon
+        assert!(sql.trim().ends_with(';'));
     }
 }

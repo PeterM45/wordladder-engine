@@ -5,12 +5,13 @@ A high-performance Rust CLI application for generating and solving word ladder p
 ## 🚀 Features
 
 - **Efficient Word Graph**: Adjacency list representation with BFS for shortest path finding
-- **Configurable Difficulty**: Easy (3-4 steps), Medium (5-7 steps), Hard (8+ steps)
+- **Configurable Difficulty**: Easy (2-3 steps), Medium (4-5 steps), Hard (6-10 steps)
 - **Flexible Configuration**: Centralized config system for file paths and settings
 - **Dual Dictionary System**: Separate dictionary for path finding and base words for puzzle endpoints
 - **Multiple Output Formats**: Text files, JSON, and SQLite-compatible SQL
+- **Dictionary Export**: Export dictionary to SQL for O(log n) mobile lookups
 - **Mobile Integration**: Direct SQL export for React Native/SQLite applications
-- **Comprehensive CLI**: Generate, batch, verify, bulk, and mobile-optimized operations
+- **Comprehensive CLI**: Generate, batch, verify, bulk, mobile-optimized, and dictionary export operations
 - **Performance Optimized**: Batched SQL inserts and balanced difficulty distribution
 
 ## 📦 Quick Start
@@ -35,6 +36,9 @@ cargo run -- generate --format sql
 
 # Generate mobile-optimized puzzles (defaults to output/mobile_puzzles.sql)
 cargo run -- generate-mobile --count 1000
+
+# Export dictionary to SQL for mobile apps (defaults to output/dictionary.sql)
+cargo run -- export-dict
 
 # Verify puzzle solution
 cargo run -- verify --puzzle "cat,cot,cog,dog"
@@ -125,6 +129,19 @@ cargo run -- generate-mobile --count 5000 --easy-ratio 0.3 --medium-ratio 0.5 --
 cargo run -- verify --puzzle "cat,cot,cog,dog"
 ```
 
+### Export Dictionary to SQL
+Export dictionary words to SQLite format for efficient mobile lookups:
+```bash
+# Export dictionary to SQL (defaults to output/dictionary.sql)
+cargo run -- export-dict
+
+# Export with custom dictionary and output path
+cargo run -- export-dict --dict data/custom_dict.txt --output mobile/dict.sql
+
+# Export without schema (for appending to existing database)
+cargo run -- export-dict --include-schema false --batch-size 50
+```
+
 ### Output Directory Behavior
 All commands automatically create the `output/` directory if it doesn't exist. When no output path is specified, files are saved with sensible default names in the output directory. You can override this by providing a custom `--output` path (absolute or relative to the output directory).
 
@@ -169,13 +186,36 @@ INSERT INTO puzzles (id, start_word, target_word, min_steps, difficulty) VALUES
 ('black_white_003', 'BLACK', 'WHITE', 9, 'hard');
 ```
 
+### Dictionary SQL Format
+```sql
+-- Create dictionary table
+CREATE TABLE IF NOT EXISTS dictionary (
+    word TEXT PRIMARY KEY,
+    length INTEGER NOT NULL
+);
+
+-- Indexes for efficient word lookups
+CREATE INDEX IF NOT EXISTS idx_dictionary_length ON dictionary(length);
+
+-- Insert dictionary words
+INSERT OR IGNORE INTO dictionary (word, length) VALUES
+('surveying', 9),
+('management', 10),
+('saturn', 6),
+('pictured', 8);
+```
+
 ## 📱 Mobile Integration
 
 ### React Native Setup
 
-1. **Generate SQL Export**
+1. **Generate SQL Exports**
 ```bash
+# Export puzzles
 cargo run -- generate-mobile --count 1000 --output mobile_puzzles.sql
+
+# Export dictionary for efficient word validation
+cargo run -- export-dict --output mobile_dictionary.sql
 ```
 
 2. **Import into SQLite Database**
@@ -183,16 +223,19 @@ cargo run -- generate-mobile --count 1000 --output mobile_puzzles.sql
 import SQLite from 'react-native-sqlite-storage';
 
 // Open database
-const db = SQLite.openDatabase({name: 'puzzles.db'});
+const db = SQLite.openDatabase({name: 'wordladder.db'});
 
-// Execute SQL file
-const sqlContent = require('./mobile_puzzles.sql');
+// Execute SQL files
+const puzzleSql = require('./mobile_puzzles.sql');
+const dictSql = require('./mobile_dictionary.sql');
+
 db.transaction(tx => {
-  tx.executeSql(sqlContent);
+  tx.executeSql(puzzleSql);
+  tx.executeSql(dictSql);
 });
 ```
 
-3. **Query Puzzles in App**
+3. **Query Puzzles and Validate Words in App**
 ```javascript
 // Get random easy puzzle
 db.transaction(tx => {
@@ -205,6 +248,21 @@ db.transaction(tx => {
     }
   );
 });
+
+// Validate if a word exists (O(log n) lookup)
+function isValidWord(word) {
+  return new Promise((resolve) => {
+    db.transaction(tx => {
+      tx.executeSql(
+        "SELECT 1 FROM dictionary WHERE word = ? LIMIT 1",
+        [word.toLowerCase()],
+        (tx, results) => {
+          resolve(results.rows.length > 0);
+        }
+      );
+    });
+  });
+}
 ```
 
 ### Performance Optimization
@@ -213,6 +271,9 @@ db.transaction(tx => {
 - **Schema Control**: Use `--include-schema` to control table creation
 - **Balanced Distribution**: `generate-mobile` ensures good gameplay balance
 - **Large Datasets**: Supports generating 5000+ puzzles efficiently
+- **Dictionary Lookups**: O(log n) SQLite queries vs O(n) text file scanning
+- **Memory Efficiency**: No need to load entire dictionary into mobile app memory
+- **Indexed Queries**: Fast word validation and length-based filtering
 
 ## 🛠️ Development
 

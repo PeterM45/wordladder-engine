@@ -17,6 +17,9 @@
 //! use wordladder_engine::puzzle::{PuzzleGenerator, Difficulty};
 //!
 //! // Create generator with loaded graph
+//! let mut graph = wordladder_engine::graph::WordGraph::new();
+//! graph.load_dictionary("data/dictionary.txt").unwrap();
+//! graph.load_base_words("data/base_words.txt").unwrap();
 //! let generator = PuzzleGenerator::new(graph);
 //!
 //! // Generate a single puzzle
@@ -28,8 +31,7 @@
 //! let puzzles = generator.generate_batch(10, Difficulty::Medium);
 //!
 //! // Verify a solution
-//! let is_valid = generator.verify_puzzle("cat,cot,cog,dog")?;
-//! # Ok::<(), anyhow::Error>(())
+//! let is_valid = generator.verify_puzzle("cat,cot,cog,dog").unwrap();
 //! ```
 
 use crate::graph::WordGraph;
